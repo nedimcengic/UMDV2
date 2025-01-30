@@ -17,6 +17,14 @@ interface UserData {
   lastName: string;
   groups?: string[]; // Optional property for groups
 }
+interface OnboardingFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  role: string;
+  managerEmail: string;
+}
 
 const App: React.FC = () => {
   const [selectedService, setSelectedService] = useState<string>('Keycloak');
@@ -27,6 +35,16 @@ const App: React.FC = () => {
     lastName: '',
     groups: [], // Initialize as an empty array
   });
+  const [onboardingData, setOnboardingData] = useState<OnboardingFormData>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    department: '',
+    role: '',
+    managerEmail: '',
+  });
+  
+  
   const [groupName, setGroupName] = useState<string>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -56,7 +74,11 @@ const App: React.FC = () => {
     const { name, value } = e.target;
     setUserData((prev) => ({ ...prev, [name]: value }));
   };
-
+  const handleOnboardingInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setOnboardingData((prev) => ({ ...prev, [name]: value }));
+  };
+  
   const handleLogin = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/google-workspace/auth-url`);
@@ -131,7 +153,7 @@ const App: React.FC = () => {
             break;
           case 'createGroup':
             const groupPayload = {
-              email: `${groupName.toLowerCase()}@yourdomain.com`, // Replace with your domain
+              email: `${groupName.toLowerCase()}@occrp.org`, // Replace with your domain
               name: groupName,
               description: 'Optional group description',
             };
@@ -229,7 +251,12 @@ const App: React.FC = () => {
             />
           )}
           {selectedService === 'Certify' && <CertifyService />} {/* Certify Service */}
-          {selectedService === 'Onboarding' && <OnboardingService />} {/* Onboarding Service */}
+          {selectedService === 'Onboarding' && (
+  <        OnboardingService
+           formData={onboardingData}
+             onInputChange={handleOnboardingInputChange}
+  />
+)}
         </main>
       </div>
     </div>
