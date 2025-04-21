@@ -1,0 +1,26 @@
+name: Add PGP Key from Jira
+
+on:
+  repository_dispatch:
+    types: [add-pgp-key]
+
+jobs:
+  add-key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Save PGP Key to File
+        run: |
+          mkdir -p pgp-keys
+          echo "${{ github.event.client_payload.key_data }}" > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
+
+      - name: Commit and Push
+        run: |
+          git config user.name "jira-bot"
+          git config user.email "bot@example.com"
+          git add pgp-keys/
+          git commit -m "Add key from ${{ github.event.client_payload.filename }}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
