@@ -10,10 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download PGP Key from Jira
+      - name: Save PGP Key to File
         run: |
           mkdir -p pgp-keys
-          curl -L -o "pgp-keys/${{ github.event.client_payload.filename }}.asc" "${{ github.event.client_payload.download_url }}"
+          echo "${{ github.event.client_payload.key_data }}" > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
 
       - name: Commit and Push
         run: |
