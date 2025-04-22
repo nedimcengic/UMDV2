@@ -13,7 +13,9 @@ jobs:
       - name: Decode and Save PGP Key
         run: |
           mkdir -p pgp-keys
-          echo "${{ github.event.client_payload.key_data }}" | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
+          echo "${{ github.event.client_payload.key_data }}" \
+              | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.stdin.read()))" \
+               > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
 
       - name: Commit and Push
         run: |
