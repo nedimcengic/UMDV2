@@ -13,7 +13,7 @@ jobs:
       - name: Download PGP Key from Jira
         run: |
           mkdir -p pgp-keys
-          curl -L -o "pgp-keys/test.asc" "https://raw.githubusercontent.com/nedimcengic/UMDV2/main/samplekey.asc"
+          curl -L -o "pgp-keys/${{ github.event.client_payload.filename }}.asc" "${{ github.event.client_payload.download_url }}"
 
       - name: Commit and Push
         run: |
