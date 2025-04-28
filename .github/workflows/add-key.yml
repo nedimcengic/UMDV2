@@ -6,31 +6,52 @@ jobs:
   extract-and-save:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Decode and extract email
+      - name: Decode, extract email, save PGP key
         run: |
-          echo "${{ github.event.client_payload.key_data }}" | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
+          echo "Start decoding key_data"
 
-          # Clean up and extract email
+          # Step 1: Properly URL-decode the incoming comment body
+          echo "${{ github.event.client_payload.key_data }}" | \
+            sed 's/+/ /g' | \
+            python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
+
+          echo "Decoded key:"
+          cat key.asc
+
+          # Step 2: Try multiple patterns to extract email
+          echo "Extracting email..."
+
+          # Try first with <email@example.com> inside UID lines
           EMAIL=$(grep -a -oP '<\K[^>]+(?=>)' key.asc | head -n1)
 
+          # If not found, fallback: look for "mailto:" if FlowCrypt key style
           if [ -z "$EMAIL" ]; then
-            echo "No email found in key!"
+            EMAIL=$(grep -a -oP 'mailto:\K[^"]+' key.asc | head -n1 || true)
+          fi
+
+          # Final fallback: grep any raw email pattern (dangerous but last resort)
+          if [ -z "$EMAIL" ]; then
+            EMAIL=$(grep -a -E -o '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' key.asc | head -n1 || true)
+          fi
+
+          if [ -z "$EMAIL" ]; then
+            echo "❌ No email address found in the PGP key! Exiting."
             exit 1
           fi
 
-          echo "Extracted email: $EMAIL"
+          echo "✅ Extracted email: $EMAIL"
 
-          # Save the key using email as filename
+          # Step 3: Save PGP key using email filename
           mkdir -p pgp_keys
-          cp key.asc "pgp_keys/$EMAIL.asc"
+          cp key.asc "pgp_keys/${EMAIL}.asc"
 
-          # Save email variable for next step
+          # Save the extracted email for next steps
           echo "EMAIL=$EMAIL" >> $GITHUB_ENV
 
-      - name: Commit and push
+      - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
