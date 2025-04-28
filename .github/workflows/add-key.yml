@@ -1,50 +1,26 @@
+name: Add PGP Key from Jira
+
 on:
   repository_dispatch:
     types: [add-pgp-key]
 
 jobs:
-  extract-and-save:
+  add-key:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Decode, extract email, save clean PGP key
+      - name: Decode and Save PGP Key
         run: |
-          echo "Start decoding key_data"
+          mkdir -p pgp-keys
+          echo "${{ github.event.client_payload.key_data }}" \
+            | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.stdin.read()))" \
+            > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
 
-          # Step 1: Decode URL-encoded comment
-          echo "${{ github.event.client_payload.key_data }}" | \
-            sed 's/+/ /g' | \
-            python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key_with_email.asc
-
-          echo "Decoded Key Content:"
-          cat key_with_email.asc
-
-          # Step 2: Extract email
-          EMAIL=$(grep -i '^\[email\]' key_with_email.asc | awk '{print $2}' | head -n1)
-
-          if [ -z "$EMAIL" ]; then
-            echo "❌ No [email] line found!"
-            exit 1
-          fi
-
-          echo "✅ Extracted email: $EMAIL"
-
-          # Step 3: Extract clean PGP block (skip [email] line)
-          awk 'BEGIN{found=0} /^-----BEGIN PGP PUBLIC KEY BLOCK-----/{found=1} found' key_with_email.asc > "pgp_keys/${EMAIL}.asc"
-
-          echo "EMAIL=$EMAIL" >> $GITHUB_ENV
-
-      - name: Verify the key by importing
+      - name: Commit and Push
         run: |
-          sudo apt-get update && sudo apt-get install -y gnupg
-          gpg --import "pgp_keys/${EMAIL}.asc" || (echo "❌ Invalid PGP key format after cleaning!" && exit 1)
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pgp_keys/
-          git commit -m "Add PGP key for $EMAIL"
+          git config user.name "jira-bot"
+          git config user.email "bot@example.com"
+          git add pgp-keys/
+          git commit -m "Add PGP key from ${{ github.event.client_payload.filename }}"
           git push
