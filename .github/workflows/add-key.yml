@@ -9,37 +9,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Decode, extract email manually, save key
+      - name: Decode, extract email, save clean PGP key
         run: |
           echo "Start decoding key_data"
 
-          # Step 1: Decode the URL-encoded comment body
+          # Step 1: Decode URL-encoded comment
           echo "${{ github.event.client_payload.key_data }}" | \
             sed 's/+/ /g' | \
-            python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
+            python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key_with_email.asc
 
           echo "Decoded Key Content:"
-          cat key.asc
+          cat key_with_email.asc
 
-          echo "Extracting email from [email] line..."
-
-          # Step 2: Extract email address from '[email] email@domain.com'
-          EMAIL=$(grep -i '^\[email\]' key.asc | awk '{print $2}' | head -n1)
+          # Step 2: Extract email
+          EMAIL=$(grep -i '^\[email\]' key_with_email.asc | awk '{print $2}' | head -n1)
 
           if [ -z "$EMAIL" ]; then
-            echo "❌ No email line found in comment! Please add '[email] your@email.com' before the PGP key."
+            echo "❌ No [email] line found!"
             exit 1
           fi
 
           echo "✅ Extracted email: $EMAIL"
 
-          # Step 3: Save key (excluding the [email] line)
-          mkdir -p pgp_keys
-          
-          # Save only the PGP key block, skip [email] line
-          awk 'BEGIN{found=0} /^-----BEGIN PGP PUBLIC KEY BLOCK-----/{found=1} found' key.asc > "pgp_keys/${EMAIL}.asc"
+          # Step 3: Extract clean PGP block (skip [email] line)
+          awk 'BEGIN{found=0} /^-----BEGIN PGP PUBLIC KEY BLOCK-----/{found=1} found' key_with_email.asc > "pgp_keys/${EMAIL}.asc"
 
           echo "EMAIL=$EMAIL" >> $GITHUB_ENV
+
+      - name: Verify the key by importing
+        run: |
+          sudo apt-get update && sudo apt-get install -y gnupg
+          gpg --import "pgp_keys/${EMAIL}.asc" || (echo "❌ Invalid PGP key format after cleaning!" && exit 1)
 
       - name: Commit and push changes
         run: |
