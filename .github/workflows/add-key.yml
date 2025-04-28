@@ -1,28 +1,35 @@
-name: Add PGP Key from Jira
-
 on:
   repository_dispatch:
     types: [add-pgp-key]
 
 jobs:
-  add-key:
+  extract-and-save:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Decode and Save PGP Key
+      - name: Extract email and save PGP key
         run: |
-          mkdir -p pgp-keys
-          echo "${{ github.event.client_payload.key_data }}" \
-              | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.stdin.read()))" \
-               > "pgp-keys/${{ github.event.client_payload.filename }}.asc"
+          # Decode the key data
+          echo "${{ github.event.client_payload.key_data }}" | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
 
-      - name: Commit and Push
+          # Extract email from the key
+          EMAIL=$(grep -oP '(?<=<)[^>]+(?=>)' key.asc | head -n1)
+
+          if [ -z "$EMAIL" ]; then
+            echo "No email found in key!"
+            exit 1
+          fi
+
+          # Save the key under the email filename
+          mkdir -p pgp_keys
+          cp key.asc "pgp_keys/$EMAIL.asc"
+
+      - name: Commit and push
         run: |
-          git config user.name "jira-bot"
-          git config user.email "bot@example.com"
-          git add pgp-keys/
-          git commit -m "Add key from ${{ github.event.client_payload.filename }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pgp_keys/
+          git commit -m "Add PGP key for $EMAIL"
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
