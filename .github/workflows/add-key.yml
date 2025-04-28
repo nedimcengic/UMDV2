@@ -9,46 +9,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Decode, extract email, save PGP key
+      - name: Decode, extract email manually, save key
         run: |
           echo "Start decoding key_data"
 
-          # Step 1: Properly URL-decode the incoming comment body
+          # Step 1: Decode the URL-encoded comment body
           echo "${{ github.event.client_payload.key_data }}" | \
             sed 's/+/ /g' | \
             python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
 
-          echo "Decoded key:"
+          echo "Decoded Key Content:"
           cat key.asc
 
-          # Step 2: Try multiple patterns to extract email
-          echo "Extracting email..."
+          echo "Extracting email from [email] line..."
 
-          # Try first with <email@example.com> inside UID lines
-          EMAIL=$(grep -a -oP '<\K[^>]+(?=>)' key.asc | head -n1)
-
-          # If not found, fallback: look for "mailto:" if FlowCrypt key style
-          if [ -z "$EMAIL" ]; then
-            EMAIL=$(grep -a -oP 'mailto:\K[^"]+' key.asc | head -n1 || true)
-          fi
-
-          # Final fallback: grep any raw email pattern (dangerous but last resort)
-          if [ -z "$EMAIL" ]; then
-            EMAIL=$(grep -a -E -o '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' key.asc | head -n1 || true)
-          fi
+          # Step 2: Extract email address from '[email] email@domain.com'
+          EMAIL=$(grep -i '^\[email\]' key.asc | awk '{print $2}' | head -n1)
 
           if [ -z "$EMAIL" ]; then
-            echo "❌ No email address found in the PGP key! Exiting."
+            echo "❌ No email line found in comment! Please add '[email] your@email.com' before the PGP key."
             exit 1
           fi
 
           echo "✅ Extracted email: $EMAIL"
 
-          # Step 3: Save PGP key using email filename
+          # Step 3: Save key (excluding the [email] line)
           mkdir -p pgp_keys
-          cp key.asc "pgp_keys/${EMAIL}.asc"
+          
+          # Save only the PGP key block, skip [email] line
+          awk 'BEGIN{found=0} /^-----BEGIN PGP PUBLIC KEY BLOCK-----/{found=1} found' key.asc > "pgp_keys/${EMAIL}.asc"
 
-          # Save the extracted email for next steps
           echo "EMAIL=$EMAIL" >> $GITHUB_ENV
 
       - name: Commit and push changes
