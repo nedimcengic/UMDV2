@@ -9,22 +9,26 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Extract email and save PGP key
+      - name: Decode and extract email
         run: |
-          # Decode the key data
           echo "${{ github.event.client_payload.key_data }}" | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))" > key.asc
 
-          # Extract email from the key
-          EMAIL=$(grep -oP '(?<=<)[^>]+(?=>)' key.asc | head -n1)
+          # Clean up and extract email
+          EMAIL=$(grep -a -oP '<\K[^>]+(?=>)' key.asc | head -n1)
 
           if [ -z "$EMAIL" ]; then
             echo "No email found in key!"
             exit 1
           fi
 
-          # Save the key under the email filename
+          echo "Extracted email: $EMAIL"
+
+          # Save the key using email as filename
           mkdir -p pgp_keys
           cp key.asc "pgp_keys/$EMAIL.asc"
+
+          # Save email variable for next step
+          echo "EMAIL=$EMAIL" >> $GITHUB_ENV
 
       - name: Commit and push
         run: |
